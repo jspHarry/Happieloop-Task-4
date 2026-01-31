@@ -1,0 +1,224 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Minimal E-Shop</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <header class="bg-white shadow">
+    <div class="max-w-6xl mx-auto p-4 flex items-center justify-between">
+      <h1 class="text-2xl font-semibold">Minimal E‑Shop</h1>
+      <nav class="space-x-4">
+        <a href="#" id="nav-products" class="text-sm">Products</a>
+        <a href="#" id="nav-orders" class="text-sm">Orders</a>
+        <button id="open-cart" class="bg-indigo-600 text-white px-3 py-1 rounded">Cart (<span id="cart-count">0</span>)</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto p-6">
+    <section id="products-section">
+      <h2 class="text-xl font-medium mb-4">Products</h2>
+      <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
+    </section>
+
+    <section id="checkout-section" class="hidden">
+      <h2 class="text-xl font-medium mb-4">Checkout</h2>
+      <form id="checkout-form" class="space-y-4 bg-white p-6 rounded shadow">
+        <div><label class="block text-sm">Full name</label><input name="name" required class="w-full border p-2 rounded"/></div>
+        <div><label class="block text-sm">Address</label><input name="address" required class="w-full border p-2 rounded"/></div>
+        <div><label class="block text-sm">City</label><input name="city" required class="w-full border p-2 rounded"/></div>
+        <div><label class="block text-sm">Payment method</label>
+          <select name="payment" required class="w-full border p-2 rounded">
+            <option>Card (demo)</option>
+            <option>UPI (demo)</option>
+          </select>
+        </div>
+        <div class="flex justify-between items-center">
+          <div class="text-lg">Total: <span id="checkout-total">0</span></div>
+          <div>
+            <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded">Place order</button>
+            <button type="button" id="back-to-products" class="ml-2 px-4 py-2 border rounded">Back</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section id="orders-section" class="hidden">
+      <h2 class="text-xl font-medium mb-4">Your Orders</h2>
+      <div id="orders-list" class="space-y-4"></div>
+    </section>
+  </main>
+
+  <!-- Cart Drawer -->
+  <div id="cart-drawer" class="fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-lg transform translate-x-full transition-transform">
+    <div class="p-4 flex items-center justify-between border-b">
+      <h3 class="font-semibold">Your Cart</h3>
+      <button id="close-cart" class="text-sm text-gray-600">Close</button>
+    </div>
+    <div id="cart-items" class="p-4 space-y-4 overflow-auto" style="max-height:70vh"></div>
+    <div class="p-4 border-t">
+      <div class="flex justify-between items-center mb-3"><strong>Total:</strong> <span id="cart-total">0</span></div>
+      <div class="flex gap-2">
+        <button id="checkout-btn" class="flex-1 bg-indigo-600 text-white px-4 py-2 rounded">Checkout</button>
+        <button id="clear-cart" class="flex-1 border rounded px-4 py-2">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:4000/api';
+    // simple guest user id
+    const USER_ID = 'guest';
+
+    // client cart stored in localStorage + synced to backend
+    let cart = JSON.parse(localStorage.getItem('eshop_cart') || '[]');
+
+    function saveCartSync(){
+      localStorage.setItem('eshop_cart', JSON.stringify(cart));
+      document.getElementById('cart-count').innerText = cart.reduce((s,i)=> s + i.qty, 0);
+      document.getElementById('cart-total').innerText = cart.reduce((s,i)=> s + i.price*i.qty, 0).toFixed(2);
+      // sync to backend
+      fetch(`${API}/cart/${USER_ID}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ items: cart }) });
+    }
+
+    function showDrawer(open){
+      const d = document.getElementById('cart-drawer');
+      if(open) d.classList.remove('translate-x-full'); else d.classList.add('translate-x-full');
+      renderCartItems();
+    }
+
+    function renderCartItems(){
+      const container = document.getElementById('cart-items');
+      container.innerHTML = '';
+      if(cart.length === 0){ container.innerHTML = '<div class="text-sm text-gray-600">Cart is empty.</div>'; }
+      cart.forEach((it, idx) => {
+        const el = document.createElement('div');
+        el.className = 'flex items-center gap-3';
+        el.innerHTML = `
+          <img src="${it.image}" class="w-16 h-16 object-cover rounded"/>
+          <div class="flex-1">
+            <div class="font-medium">${it.title}</div>
+            <div class="text-sm text-gray-600">₹${it.price.toFixed(2)}</div>
+            <div class="mt-2 flex items-center gap-2">
+              <button data-idx="${idx}" class="dec btn text-sm px-2 py-1 border rounded">-</button>
+              <div>${it.qty}</div>
+              <button data-idx="${idx}" class="inc btn text-sm px-2 py-1 border rounded">+</button>
+              <button data-idx="${idx}" class="remove text-sm text-red-600 ml-2">Remove</button>
+            </div>
+          </div>
+        `;
+        container.appendChild(el);
+      });
+      // attach handlers
+      container.querySelectorAll('.inc').forEach(b => b.onclick = (e)=>{ const i=+e.target.dataset.idx; cart[i].qty++; saveCartSync(); renderCartItems(); });
+      container.querySelectorAll('.dec').forEach(b => b.onclick = (e)=>{ const i=+e.target.dataset.idx; if(cart[i].qty>1) cart[i].qty--; else cart.splice(i,1); saveCartSync(); renderCartItems(); });
+      container.querySelectorAll('.remove').forEach(b => b.onclick = (e)=>{ const i=+e.target.dataset.idx; cart.splice(i,1); saveCartSync(); renderCartItems(); });
+      document.getElementById('cart-count').innerText = cart.reduce((s,i)=> s + i.qty, 0);
+      document.getElementById('cart-total').innerText = cart.reduce((s,i)=> s + i.price*i.qty, 0).toFixed(2);
+    }
+
+    async function fetchProducts(){
+      const res = await fetch(API + '/products');
+      const data = await res.json();
+      const grid = document.getElementById('products-grid');
+      grid.innerHTML = '';
+      data.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'bg-white p-4 rounded shadow';
+        card.innerHTML = `
+          <img src="${p.image}" class="w-full h-44 object-cover rounded mb-3"/>
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="font-medium">${p.title}</h3>
+              <p class="text-sm text-gray-600">${p.description}</p>
+            </div>
+            <div class="text-lg font-semibold">₹${p.price.toFixed(2)}</div>
+          </div>
+          <div class="mt-3 flex gap-2">
+            <button data-id="${p._id}" class="add-to-cart flex-1 bg-indigo-600 text-white px-3 py-2 rounded">Add to cart</button>
+            <button data-id="${p._id}" class="view-details px-3 py-2 border rounded">Details</button>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+      // add handlers
+      document.querySelectorAll('.add-to-cart').forEach(b => b.onclick = (e)=>{
+        const id = e.target.dataset.id;
+        const product = data.find(x => x._id === id);
+        if(!product) return;
+        const existing = cart.find(c => c.productId === id);
+        if(existing) existing.qty++;
+        else cart.push({ productId: id, title: product.title, price: product.price, qty: 1, image: product.image });
+        saveCartSync();
+      });
+    }
+
+    // nav handlers
+    document.getElementById('open-cart').onclick = ()=> showDrawer(true);
+    document.getElementById('close-cart').onclick = ()=> showDrawer(false);
+    document.getElementById('clear-cart').onclick = ()=> { cart = []; saveCartSync(); renderCartItems(); }
+    document.getElementById('checkout-btn').onclick = ()=> {
+      document.getElementById('products-section').classList.add('hidden');
+      document.getElementById('checkout-section').classList.remove('hidden');
+      document.getElementById('orders-section').classList.add('hidden');
+      document.getElementById('checkout-total').innerText = cart.reduce((s,i)=> s + i.price*i.qty, 0).toFixed(2);
+      showDrawer(false);
+    };
+    document.getElementById('back-to-products').onclick = ()=> {
+      document.getElementById('products-section').classList.remove('hidden');
+      document.getElementById('checkout-section').classList.add('hidden');
+    };
+
+    document.getElementById('checkout-form').onsubmit = async (e)=>{
+      e.preventDefault();
+      if(cart.length === 0){ alert('Cart empty'); return; }
+      const formData = new FormData(e.target);
+      const shipping = { name: formData.get('name'), address: formData.get('address'), city: formData.get('city') };
+      const payment = { method: formData.get('payment'), demo: true };
+      const body = { items: cart, shipping, payment };
+      const res = await fetch(`${API}/checkout/${USER_ID}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const data = await res.json();
+      if(data.success){
+        cart = [];
+        saveCartSync();
+        alert('Order placed — order id: ' + data.orderId);
+        document.getElementById('checkout-section').classList.add('hidden');
+        document.getElementById('products-section').classList.remove('hidden');
+      } else alert('Checkout failed');
+    };
+
+    // Orders page
+    document.getElementById('nav-orders').onclick = async (e)=>{
+      e.preventDefault();
+      document.getElementById('products-section').classList.add('hidden');
+      document.getElementById('checkout-section').classList.add('hidden');
+      document.getElementById('orders-section').classList.remove('hidden');
+      const res = await fetch(`${API}/orders/${USER_ID}`);
+      const orders = await res.json();
+      const container = document.getElementById('orders-list');
+      container.innerHTML = '';
+      if(orders.length === 0) container.innerHTML = '<div class="text-sm text-gray-600">No orders yet.</div>';
+      orders.forEach(o => {
+        const el = document.createElement('div');
+        el.className = 'bg-white p-4 rounded shadow';
+        el.innerHTML = `<div class="flex justify-between"><div><strong>Order</strong> ${o._id}</div><div>${new Date(o.createdAt).toLocaleString()}</div></div>
+          <div class="mt-2">Status: <strong>${o.status}</strong></div>
+          <div class="mt-3 space-y-2">${o.items.map(it=>`<div class="flex items-center gap-3"><img src="${it.image}" class="w-12 h-12 object-cover rounded"/><div><div>${it.title}</div><div class="text-sm">Qty ${it.qty} — ₹${it.price}</div></div></div>`).join('')}</div>
+          <div class="mt-3 text-right font-semibold">Total: ₹${o.total.toFixed(2)}</div>`;
+        container.appendChild(el);
+      });
+    };
+
+    // Initialization
+    (async function init(){
+      await fetchProducts();
+      saveCartSync();
+    })();
+
+  </script>
+</body>
+</html>
