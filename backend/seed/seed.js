@@ -1,11 +1,11 @@
 
 /*
 Run: node seed/seed.js
-Make sure MONGO_URI is set in environment or defaults to mongodb://localhost:27017/ecommerce_demo
+Make sure MONGO_URI is set in environment or defaults to mongodb://localhost:27017/...
 */
 const mongoose = require('mongoose');
 const Product = require('../models/product');
-const MONGO = process.env.MONGO_URI || 'mongodb+srv://jaspinder0029_db_user:5ah2PTZ2R7r89aVH@cluster0.mjnuqzw.mongodb.net/?appName=Cluster0';
+const MONGO = process.env.MONGO_URI;
 
 mongoose.connect(MONGO, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(()=> seed())
